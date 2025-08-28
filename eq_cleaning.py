@@ -63,6 +63,8 @@ def process_eq_dag():
         
         try:
             df = pd.read_csv(f'{INPUT_DIR}/EQ_Nando.csv')
+            df['Amount'] = df['Amount'].replace('[^0-9.-]', '', regex=True)
+            df['Amount'] = df['Amount'].astype(float)
             # Filtrar linhas por comparação exata, sem normalização
             df_filtered = df[~df['Description'].isin(EXCLUDE_DESCRIPTIONS)]
             # Remover coluna Balance se existir
@@ -84,6 +86,8 @@ def process_eq_dag():
         
         try:
             df = pd.read_csv(f'{INPUT_DIR}/EQ_Future.csv')
+            df['Amount'] = df['Amount'].replace('[^0-9.-]', '', regex=True)
+            df['Amount'] = df['Amount'].astype(float)
             # Filtrar linhas por comparação exata, sem normalização
             df_filtered = df[~df['Description'].isin(EXCLUDE_DESCRIPTIONS)]
             # Remover coluna Balance se existir
