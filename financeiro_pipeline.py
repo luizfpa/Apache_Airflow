@@ -118,9 +118,6 @@ with DAG(
     @task
     def merge_and_append(pc_df: pd.DataFrame | None, ws_df: pd.DataFrame | None, cibcn_df: pd.DataFrame | None, eq_df: pd.DataFrame | None) -> str:
         """Mescla DataFrames, remove duplicatas e adiciona ao arquivo de saída."""
-        # Configura loggings
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
         
         dfs = [df for df in [pc_df, ws_df, cibcn_df, eq_df] if df is not None]
         if not dfs:
@@ -139,8 +136,6 @@ with DAG(
         else:
             final_df = merged_df
         
-        # Loga número de linhas após deduplicação
-        logger.info(f"Total de linhas após deduplicação: {len(final_df)}")
         final_df.to_csv(OUTPUT_FILE, index=False)
         return OUTPUT_FILE
     
@@ -152,26 +147,14 @@ with DAG(
         # Padroniza Description: cada palavra com a primeira letra maiúscula
         if 'Description' in df.columns:
             df['Description'] = df['Description'].astype(str).str.title()
-        
-        # Configura logging
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
-        
+
         # Remove transações com Date ausente ou vazio
         if 'Date' in df.columns:
-            initial_rows = len(df)
             df = df[df['Date'].notna() & (df['Date'].str.strip() != '')]
-            removed_rows = initial_rows - len(df)
-            if removed_rows > 0:
-                logger.info(f"Removidas {removed_rows} transações sem data válida.")
-        
+
         # Limpa Amount: remove aspas e mantém como string
         if 'Amount' in df.columns:
             df['Amount'] = df['Amount'].astype(str).str.replace('"', '', regex=False).str.strip()
-            # Loga valores que parecem inválidos (não numéricos, exceto sinal)
-            non_numeric = df[df['Amount'].str.match(r'^-?\d*\.?\d*$', na=False) == False]
-            if not non_numeric.empty:
-                logger.warning(f"Valores não numéricos em Amount: {non_numeric[['Amount']].to_dict()}")
 
         # Padroniza a coluna Date para MM/DD/YYYY, tratando múltiplos formatos
         if 'Date' in df.columns:
@@ -193,6 +176,76 @@ with DAG(
         df.to_csv(output_path, index=False)
         return output_path
 
+    @task
+    def categorize_transaction(output_path: str) -> str:
+        """Adiciona colunas Category e Subcategory conforme regras para Description."""
+        df = pd.read_csv(output_path)
+        import re
+        def normalize_spaces(text):
+            return re.sub(r"\s+", " ", text).strip()
+
+        # Padroniza toda a coluna Description para remover espaços duplicados
+        if 'Description' in df.columns:
+            df['Description'] = df['Description'].astype(str).apply(normalize_spaces)
+
+        def get_category_subcategory(row):
+            desc = str(row["Description"]).upper()
+            amount = str(row["Amount"])
+            try:
+                amount_float = float(amount)
+            except (ValueError, TypeError):
+                amount_float = 0.0
+            grocery_keywords = ["SAFEWAY #4912",
+                                "WAL-MART",
+                                "MARKETPLACE IGA #017",
+                                "REAL CDN SUPERSTORE #1"]
+            housing_keywords = ["AUTO-WITHDRAWAL BY SOLARO APARTMEN"]
+            haircut_keywords = ["GREAT CLIPS #2744"]
+            document_keywords = ["STAPLES STORE #93",
+                                 "VFS SERVICES USA INC."]
+            beauty_keywords = ["SHOPPERS DRUG MART #02"]
+            pet_keywords = ["LANGLEY ANIMAL CLINIC",
+                            "CFIA/ACIA-STOREFRONT/V"]
+            household_keywords = ["DOLLARAMA",
+                                  "TEMU.COM"]
+            carinstallment_keywords = ["AUTO-WITHDRAWAL"]
+            international_keywords = ["INTERNATIONAL TRANSFER"]
+            clothing_keywords = ["ZHOUHUANG"]
+            salary_keywords = ["TRANSFER FROM 111431248 TO 114728209"]
+            interest_keywords = ["INTEREST"]
+            if any(keyword in desc for keyword in grocery_keywords):
+                return pd.Series(["Groceries", "Food"])
+            if any(keyword in desc for keyword in housing_keywords):
+                return pd.Series(["Housing", "Rent"])
+            if any(keyword in desc for keyword in haircut_keywords):
+                return pd.Series(["Personal", "Haircut"])
+            if any(keyword in desc for keyword in document_keywords):
+                return pd.Series(["Personal", "Documents"])
+            if any(keyword in desc for keyword in beauty_keywords):
+                return pd.Series(["Personal", "Beauty"])
+            if any(keyword in desc for keyword in international_keywords):
+                return pd.Series(["Personal", "Brazil"])
+            if any(keyword in desc for keyword in clothing_keywords):
+                return pd.Series(["Personal", "Clothing"])
+            if any(keyword in desc for keyword in pet_keywords):
+                return pd.Series(["Pets", "Vet"])
+            if any(keyword in desc for keyword in pet_keywords):
+                return pd.Series(["Pets", "Document"])
+            if any(keyword in desc for keyword in household_keywords):
+                return pd.Series(["Household", "Misc"])
+            if any(keyword in desc for keyword in carinstallment_keywords):
+                return pd.Series(["Car", "Installment"])
+            if any(keyword in desc for keyword in salary_keywords) and amount == "1252.0":
+                return pd.Series(["Income", "Salary"])
+            if any(keyword in desc for keyword in interest_keywords):
+                return pd.Series(["Income", "Interest"])
+            return pd.Series([None, None])
+
+        df[["Category", "Subcategory"]] = df.apply(get_category_subcategory, axis=1)
+        df.to_csv(output_path, index=False)
+        return output_path
+
+
     pc_path = find_pc_file()
     ws_path = find_ws_file()
     cibcn_path = find_cibcn_file()
@@ -203,3 +256,4 @@ with DAG(
     eq_processed = process_eq_file(eq_path)
     merged_path = merge_and_append(pc_processed, ws_processed, cibcn_processed, eq_processed)
     cleaned_path = clean_output_file(merged_path)
+    categorized_path = categorize_transaction(cleaned_path)
