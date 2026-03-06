@@ -88,7 +88,6 @@ def transform_data(data, transformation_type, *,db_path=None, table_name=None):
         elif transformation_type == 'clean':
             # For visit_logs, use 'page_url' as category and create dummy amount
             df = data.dropna()
-            df = data.dropna()
             if 'page_url' in df.columns:
                 df = df.rename(columns={'page_url': 'category'})
                 df['amount'] = np.random.randint(1, 101, size=len(df))
