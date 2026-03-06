@@ -204,8 +204,8 @@ with DAG(
             document_keywords = ["STAPLES STORE #93",
                                  "VFS SERVICES USA INC."]
             beauty_keywords = ["SHOPPERS DRUG MART #02"]
-            pet_keywords = ["LANGLEY ANIMAL CLINIC",
-                            "CFIA/ACIA-STOREFRONT/V"]
+            pet_vet_keywords = ["LANGLEY ANIMAL CLINIC"]
+            pet_doc_keywords = ["CFIA/ACIA-STOREFRONT/V"]
             household_keywords = ["DOLLARAMA",
                                   "TEMU.COM"]
             carinstallment_keywords = ["AUTO-WITHDRAWAL"]
@@ -227,9 +227,9 @@ with DAG(
                 return pd.Series(["Personal", "Brazil"])
             if any(keyword in desc for keyword in clothing_keywords):
                 return pd.Series(["Personal", "Clothing"])
-            if any(keyword in desc for keyword in pet_keywords):
+            if any(keyword in desc for keyword in pet_vet_keywords):
                 return pd.Series(["Pets", "Vet"])
-            if any(keyword in desc for keyword in pet_keywords):
+            if any(keyword in desc for keyword in pet_doc_keywords):
                 return pd.Series(["Pets", "Document"])
             if any(keyword in desc for keyword in household_keywords):
                 return pd.Series(["Household", "Misc"])
